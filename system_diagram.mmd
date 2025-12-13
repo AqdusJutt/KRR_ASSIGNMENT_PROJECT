@@ -1,0 +1,54 @@
+graph TB
+    subgraph "User Layer"
+        UI[Next.js Web Interface<br/>Port 3000]
+    end
+    
+    subgraph "API Layer"
+        API[FastAPI Backend<br/>Port 8000]
+    end
+    
+    subgraph "Agent Layer"
+        COORD[Coordinator Agent<br/>Task Decomposition<br/>Result Synthesis]
+        
+        subgraph "Specialized Agents"
+            RESEARCH[Research Agent<br/>Knowledge Base Search]
+            ANALYSIS[Analysis Agent<br/>Data Analysis & Reasoning]
+            MEMORY_AGENT[Memory Agent<br/>Vector Search]
+        end
+    end
+    
+    subgraph "Memory Layer"
+        MEMORY_MGR[Memory Manager]
+        VECTOR[FAISS Vector Store<br/>Conversation Memory]
+        KB[Knowledge Base<br/>Storage]
+    end
+    
+    subgraph "External Services"
+        LLM[Groq LLM API<br/>Llama 3.3 70B]
+    end
+    
+    UI -->|HTTP/REST| API
+    API -->|Query| COORD
+    COORD -->|Search Request| RESEARCH
+    COORD -->|Analyze Request| ANALYSIS
+    COORD -->|Memory Query| MEMORY_AGENT
+    COORD <-->|Task Decomp/Summary| LLM
+    RESEARCH -->|Store Findings| MEMORY_MGR
+    ANALYSIS -->|Store Results| MEMORY_MGR
+    MEMORY_AGENT -->|Retrieve| MEMORY_MGR
+    MEMORY_MGR --> VECTOR
+    MEMORY_MGR --> KB
+    RESEARCH -->|Results| COORD
+    ANALYSIS -->|Results| COORD
+    MEMORY_AGENT -->|Results| COORD
+    COORD -->|Final Answer| API
+    API -->|Response| UI
+    
+    style COORD fill:#ff9800
+    style RESEARCH fill:#9c27b0
+    style ANALYSIS fill:#9c27b0
+    style MEMORY_AGENT fill:#9c27b0
+    style MEMORY_MGR fill:#ffeb3b
+    style LLM fill:#9e9e9e
+    style UI fill:#2196f3
+    style API fill:#4caf50

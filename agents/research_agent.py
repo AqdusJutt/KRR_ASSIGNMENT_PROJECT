@@ -136,10 +136,12 @@ class ResearchAgent:
                 },
                 {
                     "title": "Adam Optimizer",
-                    "content": "Adam combines adaptive learning rates with momentum, adjusting learning rates for each parameter individually.",
+                    "content": "Adam combines adaptive learning rates with momentum, adjusting learning rates for each parameter individually. Adam maintains per-parameter learning rates by computing running averages of both the gradients and their squared values (first and second moment estimates).",
                     "confidence": 0.95,
                     "pros": ["Fast convergence", "Adaptive learning rates", "Works well with sparse gradients"],
-                    "cons": ["Requires tuning hyperparameters", "Can be memory intensive"]
+                    "cons": ["Requires tuning hyperparameters", "Can be memory intensive"],
+                    "memory_usage": "Adam requires approximately 3x more memory than SGD because it stores: 1) First moment estimates (m) - running average of gradients for each parameter, 2) Second moment estimates (v) - running average of squared gradients for each parameter, 3) Model parameters (same as SGD). For a model with N parameters, Adam stores N (parameters) + N (first moments) + N (second moments) = 3N values, while SGD only stores N (parameters) + N (gradients during backprop) = 2N values temporarily.",
+                    "memory_details": "Adam stores per-parameter state: momentum estimates (m_t) and squared gradient estimates (v_t), each requiring the same memory as model parameters. This doubles the memory footprint compared to SGD, which only needs to store gradients temporarily during backpropagation."
                 },
                 {
                     "title": "RMSprop",
@@ -150,10 +152,12 @@ class ResearchAgent:
                 },
                 {
                     "title": "Stochastic Gradient Descent (SGD)",
-                    "content": "SGD uses random batches of data instead of the entire dataset, making it more efficient for large datasets.",
+                    "content": "SGD uses random batches of data instead of the entire dataset, making it more efficient for large datasets. SGD only stores model parameters and computes gradients on-the-fly during backpropagation without maintaining additional per-parameter state.",
                     "confidence": 0.95,
-                    "pros": ["Efficient for large datasets", "Can escape local minima", "Simple"],
-                    "cons": ["Noisy gradients", "Requires learning rate scheduling"]
+                    "pros": ["Efficient for large datasets", "Can escape local minima", "Simple", "Lower memory usage"],
+                    "cons": ["Noisy gradients", "Requires learning rate scheduling"],
+                    "memory_usage": "SGD has lower memory requirements than Adam. It only stores: 1) Model parameters (weights and biases), 2) Gradients (temporarily during backpropagation, then discarded). SGD does not maintain persistent per-parameter state between iterations, making it more memory-efficient for large models.",
+                    "memory_details": "SGD memory footprint: N (parameters) + N (gradients during backprop, then freed). No persistent state is maintained, so memory usage is approximately 2N during training and N during inference, compared to Adam's 3N persistent storage."
                 }
             ],
             "transformer architectures": [
@@ -316,28 +320,84 @@ class ResearchAgent:
                            "data security", "personal information", "gdpr", "ccpa", "anonymization", "encryption"]
         is_privacy_query = any(keyword in query_lower for keyword in privacy_keywords)
         
+        # Handle optimizer queries
+        optimizer_keywords = ["optimizer", "optimization", "adam", "sgd", "gradient descent", "rmsprop"]
+        is_optimizer_query = any(keyword in query_lower for keyword in optimizer_keywords)
+        
+        # PRIORITY: Handle optimizer queries FIRST before other matching
+        if is_optimizer_query and "optimization techniques" in self.knowledge_base:
+            if "optimization techniques" not in matched_topics:
+                matched_topics.append("optimization techniques")
+            # Add optimization technique entries, filtering for Adam/SGD if mentioned
+            entries_added = 0
+            for entry in self.knowledge_base["optimization techniques"]:
+                entry_text = (entry.get("title", "") + " " + entry.get("content", "")).lower()
+                # If query specifically mentions Adam or SGD, prioritize those entries
+                if "adam" in query_lower or "sgd" in query_lower:
+                    if "adam" in entry_text or "sgd" in entry_text or "stochastic" in entry_text:
+                        results.append({
+                            "topic": "optimization techniques",
+                            **entry,
+                            "match_score": 1.0  # High priority for optimizer queries
+                        })
+                        entries_added += 1
+                else:
+                    # General optimizer query - include all
+                    results.append({
+                        "topic": "optimization techniques",
+                        **entry,
+                        "match_score": 0.9
+                    })
+                    entries_added += 1
+            log_agent_call(logger, self.name, f"Priority handler added {entries_added} optimizer entries")
+        
         # First, check for exact topic matches (highest priority)
         for topic, entries in self.knowledge_base.items():
             topic_lower = topic.lower()
+            
             # Exact topic match or topic words in query
-            if (topic_lower in query_lower or 
-                any(keyword in query_lower for keyword in topic_lower.split()) or
-                (is_ai_query and topic_lower == "artificial intelligence") or
-                (is_agent_query and topic_lower == "ai agents") or
-                (is_privacy_query and topic_lower == "privacy and data protection")):
+            topic_matched = False
+            if topic_lower in query_lower or any(keyword in query_lower for keyword in topic_lower.split()):
+                topic_matched = True
+            elif (is_ai_query and topic_lower == "artificial intelligence"):
+                topic_matched = True
+            elif (is_agent_query and topic_lower == "ai agents"):
+                topic_matched = True
+            elif (is_privacy_query and topic_lower == "privacy and data protection"):
+                topic_matched = True
+            elif (is_optimizer_query and topic_lower == "optimization techniques"):
+                topic_matched = True
+            
+            if topic_matched:
+                if topic not in matched_topics:
+                    matched_topics.append(topic)
                 
-                matched_topics.append(topic)
-                # If exact topic match, include all entries from that topic
-                if (topic_lower in query_lower or 
-                    (is_ai_query and topic_lower == "artificial intelligence") or
-                    (is_agent_query and topic_lower == "ai agents") or
-                    (is_privacy_query and topic_lower == "privacy and data protection")):
-                    for entry in entries:
-                        results.append({
-                            "topic": topic,
-                            **entry,
-                            "match_score": 1.0  # Exact topic match
-                        })
+                # Determine if this is an exact match (include all entries) or partial (filter)
+                is_exact_match = (topic_lower in query_lower or 
+                                 (is_ai_query and topic_lower == "artificial intelligence") or
+                                 (is_agent_query and topic_lower == "ai agents") or
+                                 (is_privacy_query and topic_lower == "privacy and data protection") or
+                                 (is_optimizer_query and topic_lower == "optimization techniques"))
+                
+                if is_exact_match:
+                    # For optimizer queries with Adam/SGD, filter to those entries
+                    if is_optimizer_query and topic_lower == "optimization techniques" and ("adam" in query_lower or "sgd" in query_lower):
+                        for entry in entries:
+                            entry_text = (entry.get("title", "") + " " + entry.get("content", "")).lower()
+                            if "adam" in entry_text or "sgd" in entry_text or "stochastic" in entry_text:
+                                results.append({
+                                    "topic": topic,
+                                    **entry,
+                                    "match_score": 1.0
+                                })
+                    else:
+                        # Include all entries for exact match
+                        for entry in entries:
+                            results.append({
+                                "topic": topic,
+                                **entry,
+                                "match_score": 1.0  # Exact topic match
+                            })
                 else:
                     # Partial match - check entry relevance
                     for entry in entries:
@@ -357,7 +417,8 @@ class ResearchAgent:
                 for entry in entries:
                     entry_text = (entry.get("title", "") + " " + entry.get("content", "")).lower()
                     # Check if any query keyword appears in entry
-                    if any(keyword in entry_text for keyword in query_lower.split() if len(keyword) > 2):
+                    query_words = [w for w in query_lower.split() if len(w) > 2]
+                    if any(keyword in entry_text for keyword in query_words):
                         results.append({
                             "topic": topic,
                             **entry,
@@ -371,6 +432,13 @@ class ResearchAgent:
                 topic = result.get("topic", "").lower()
                 if "privacy" in topic or "data protection" in topic:
                     result["match_score"] = result.get("match_score", 0) + 1.0  # Boost privacy matches
+        
+        # Prioritize optimizer-related results when optimizer keywords are present
+        if is_optimizer_query:
+            for result in results:
+                entry_text = (result.get("title", "") + " " + result.get("content", "")).lower()
+                if "adam" in entry_text or "sgd" in entry_text or "optimizer" in entry_text:
+                    result["match_score"] = result.get("match_score", 0) + 0.5  # Boost optimizer matches
         
         results.sort(key=lambda x: x.get("match_score", 0), reverse=True)
         

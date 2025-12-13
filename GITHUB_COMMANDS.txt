@@ -1,0 +1,21 @@
+# GitHub Upload Commands - Copy and Paste These
+
+# Step 1: Create repository on GitHub first (go to github.com and create new repo)
+
+# Step 2: Connect to your GitHub repository
+# Replace YOUR_USERNAME with your actual GitHub username
+git remote add origin https://github.com/YOUR_USERNAME/KRR_ASSIGNMENT_PROJECT.git
+
+# Step 3: Set main branch
+git branch -M main
+
+# Step 4: Push to GitHub
+git push -u origin main
+
+# That's it! Your code is now on GitHub.
+
+# For future updates:
+# git add .
+# git commit -m "Your update message"
+# git push
+

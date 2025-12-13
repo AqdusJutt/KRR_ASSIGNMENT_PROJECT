@@ -23,6 +23,8 @@ class AnalysisAgent:
         # Determine analysis type
         if any(keyword in query_lower for keyword in ["compare", "comparison", "versus", "vs", "difference"]):
             return self._compare_items(query, data or [])
+        elif any(keyword in query_lower for keyword in ["memory", "memory usage", "storage", "requires more memory"]):
+            return self._analyze_memory_usage(query, data or [])
         elif any(keyword in query_lower for keyword in ["effective", "efficiency", "best", "better", "recommend"]):
             return self._evaluate_effectiveness(query, data or [])
         elif any(keyword in query_lower for keyword in ["trade-off", "tradeoff", "pros", "cons", "advantage"]):
@@ -180,6 +182,70 @@ class AnalysisAgent:
             "query": query,
             "result": result_text,
             "confidence": 0.8
+        }
+    
+    def _analyze_memory_usage(self, query: str, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Analyze memory usage and requirements."""
+        if not data:
+            return {
+                "agent": self.name,
+                "query": query,
+                "result": "No data available for memory analysis.",
+                "confidence": 0.3
+            }
+        
+        result_text = "Memory Usage Analysis:\n\n"
+        
+        memory_comparison = []
+        for item in data:
+            title = item.get("title", "Unknown")
+            memory_info = item.get("memory_usage", "")
+            memory_details = item.get("memory_details", "")
+            
+            if memory_info or memory_details:
+                memory_comparison.append({
+                    "name": title,
+                    "memory_info": memory_info,
+                    "memory_details": memory_details
+                })
+        
+        if memory_comparison:
+            # Compare memory requirements
+            for item in memory_comparison:
+                result_text += f"**{item['name']}:**\n"
+                if item['memory_info']:
+                    result_text += f"{item['memory_info']}\n"
+                if item['memory_details']:
+                    result_text += f"\nDetails: {item['memory_details']}\n"
+                result_text += "\n"
+            
+            # Summary comparison
+            result_text += "**Summary:**\n"
+            if len(memory_comparison) >= 2:
+                # Find which uses more memory
+                adam_item = next((x for x in memory_comparison if "Adam" in x['name']), None)
+                sgd_item = next((x for x in memory_comparison if "SGD" in x['name']), None)
+                
+                if adam_item and sgd_item:
+                    result_text += "Adam optimizer requires approximately 3x more memory than SGD during training.\n\n"
+                    result_text += "**Adam stores:**\n"
+                    result_text += "- Model parameters (weights and biases)\n"
+                    result_text += "- First moment estimates (running average of gradients)\n"
+                    result_text += "- Second moment estimates (running average of squared gradients)\n\n"
+                    result_text += "**SGD stores:**\n"
+                    result_text += "- Model parameters (weights and biases)\n"
+                    result_text += "- Gradients (temporarily during backpropagation, then discarded)\n\n"
+                    result_text += "For a model with N parameters, Adam requires ~3N persistent storage, while SGD requires ~2N during training (gradients are freed after update)."
+        else:
+            # Fallback to general analysis
+            result_text += "Memory usage information not available in detail. "
+            result_text += "Generally, adaptive optimizers like Adam require more memory than SGD.\n"
+        
+        return {
+            "agent": self.name,
+            "query": query,
+            "result": result_text,
+            "confidence": 0.85 if memory_comparison else 0.5
         }
     
     def _identify_challenges(self, query: str, data: List[Dict[str, Any]]) -> Dict[str, Any]:
