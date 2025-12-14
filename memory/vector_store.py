@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from sentence_transformers import SentenceTransformer
 
 class VectorStore:
+    
     """FAISS-based vector store for semantic similarity search."""
     
     def __init__(self, embedding_model: str = "all-MiniLM-L6-v2", dimension: int = 384):
